@@ -1,0 +1,29 @@
+@import '../variables.css';
+
+.helpLinkContainer {
+    border: 0;
+    font: inherit;
+    font-size: 100%;
+    vertical-align: baseline;
+    padding: 10px !important;
+    line-height: 1.8em;
+}
+
+.helpLinkStyle {
+    text-align: right;
+    margin-right: -20px;
+}
+
+.label {
+    font-weight: 700;
+}
+
+.closeContainer{
+    cursor: pointer;
+}
+
+.close {
+    float: right;
+    height: 20px !important;
+    width: 20px !important;
+}

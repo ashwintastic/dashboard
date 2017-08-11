@@ -1,0 +1,359 @@
+{
+  "analytics" :
+    {
+      "overview" : {
+        "helpContent" : [
+          {
+            "text" : "Summary of all metrics for the selected filters."
+          },
+          {
+            "text" : "Please click on any summary number to go to more details about that metric."
+          }
+        ]
+      },
+      "users" : {
+        "helpContent" : [
+          {
+            "legend": "All:",
+            "text" : "  Any activity for the day."
+          },
+          {
+            "legend": "Active:",
+            "text" : " Users that are Engaged and/or read a message."
+          },
+          {
+            "legend": "Engaged:",
+            "text" : "  Users that have clicked on a message and/or messaged the bot."
+          },
+          {
+            "legend": "New:",
+            "text" : " Users with activity on the bot for the first time."
+          }
+        ]
+      },
+      "userChange" : {
+        "helpContent" : [
+          {
+            "legend": "New:",
+            "text" : " Users that we created in our system this day."
+          },
+          {
+            "legend": "Blocked:",
+            "text" : " Users that blocked messaging from the bot."
+          },
+          {
+            "legend": "Unblocked:",
+            "text" : " Users that had blocked the bot and then started using it again"
+          }
+        ]
+      },
+      "retention" : {
+        "helpContent" : [
+          {
+            "label": "Retention By Day Graph",
+            "legend": "",
+            "text" : ""
+          },
+          {
+            "text": "Average retention of new users X days after being added. "
+          },
+          {
+            "legend": "X-axis:",
+            "text" : " X days since the user was added"
+          },
+          {
+            "legend": "Y-axis:",
+            "text" : " Average retention percentage"
+          },
+          {
+            "label": "Retention By Date Graph",
+            "legend": "",
+            "text" : ""
+          },
+          {
+            "text": "Average retention of new users on a specific date. This helps see if a "
+          },
+          {
+            "text": "specific change on a specific date impacted usage/retention."
+          },
+          {
+            "legend": "X-axis:",
+            "text" : " Specific date"
+          },
+          {
+            "legend": "Y-axis:",
+            "text" : " Average retention of new users X days after being added."
+          },
+                    {
+            "label": "New User Retention Table",
+            "legend": "",
+            "text" : ""
+          },
+          {
+            "text": "Percentage of the New Users from a specific day that were active X days later."
+          },
+          {
+            "legend": "Date:",
+            "text" : " Date new users were added."
+          },
+          {
+            "legend": "New Users:",
+            "text" : " Count of new users added that day."
+          },
+          {
+            "legend": "Day X:",
+            "text" : " Each Day column represents X days since the user was added up to 30."
+          },
+          {
+            "legend": "Average:",
+            "text": " Average retention of new users X days after being added."
+          }
+        ]
+      },
+      "messages" : {
+        "helpContent" : [
+          {
+            "legend": "Total:",
+            "text" : " Sum of in and out messages."
+          },
+          {
+            "legend": "In:",
+            "text" : " All messages from the user to the bot."
+          },
+          {
+            "legend": "Out:",
+            "text" : " All messages from the bot to the user."
+          },
+          {
+            "label": "Message Types",
+            "legend": "",
+            "text" : ""
+          },
+          {
+            "legend": "All:",
+            "text" : " All message types."
+          },
+          {
+            "legend": "Sign Up:",
+            "text" : " All messages related to the user signing up for the bot."
+          },
+          {
+            "legend": "Referral:",
+            "text" : " All messages related to a user coming in by referral id."
+          },
+          {
+            "legend": "Tap:",
+            "text" : " All messages triggered by a tap (on a button or menu)."
+          },
+          {
+            "legend": "Type:",
+            "text" : " All messages triggered by typed input from the user."
+          },
+          {
+            "legend": "Broadcast:",
+            "text" : " All messages triggered by a broadcast to a user."
+          }
+        ]
+      },
+      "session" : {
+        "helpContent" : [
+          {
+            "legend": "Total:",
+            "text" : " All sessions for that day."
+          },
+          {
+            "legend": "Engaged:",
+            "text" : " Session where user sent a message or clicked on content."
+          }
+        ]
+      },
+      "engagement" : {
+        "helpContent" : [
+          {
+            "legend": "Messages Per User:",
+            "text" : " Average messages per user per day."
+          },
+          {
+            "legend": "Sessions Per User:",
+            "text" : " Average sessions per user per day."
+          },
+          {
+            "legend": "Messages Per Session:",
+            "text" : " Average messages per session per day."
+          },
+          {
+            "legend": "User:",
+            "text" : " Users that have received, sent, or read a message."
+          },
+          {
+            "legend": "Sessions:",
+            "text" : " All sessions for that day."
+          },
+          {
+            "legend": "Messages:",
+            "text" : " Sum of in and out messages."
+          }
+        ]
+      },
+      "gender" : {
+        "helpContent" : [
+          {
+            "legend": "Male:",
+            "text" : " Percentage of Male users against total users."
+          },
+          {
+            "legend": "Female:",
+            "text" : " Percentage of Female users against total users."
+          }
+        ]
+      },
+      "timeZone" : {
+        "helpContent" : [
+          {
+            "text" : "Percentage of users in the selected timezone."
+          }
+        ]
+      },
+      "locale" : {
+        "helpContent" : [
+          {
+            "text" : "Percentage of users for the selected locale."
+          }
+        ]
+      },
+      "sentMessages" : {
+        "helpContent" : [
+          {
+            "legend": "Sent:",
+            "text" : " Messages sent to users (messages out)."
+          },
+          {
+            "legend": "Delivered:",
+            "text" : " Messages marked as delivered to users."
+          },
+          {
+            "legend": "Read:",
+            "text" : " Messages marked as read by users."
+          },
+          {
+            "legend": "Engaged:",
+            "text" : " Messages that were engaged with (responded to or clicked)."
+          }
+        ]
+      },
+      "deliveryTime" : {
+        "helpContent" : [
+          {
+            "text" : "Shows the time it took between a message being sent and being marked as delivered."
+          },
+          {
+            "label": "Average delivery time:"
+          },
+          {
+            "text": "Average delivery time of messages that get delivered in less than 12 hours."
+          }
+        ]
+      },
+      "readTime" : {
+        "helpContent" : [
+          {
+            "text" : "Shows the time it took between a message being delivered and being marked as read."
+          },
+          {
+            "label": "Average Read time:"
+          },
+          {
+            "text": "Average Read time of messages that are read in less than 12 hours."
+          }
+        ]
+      },
+      "engagementTime" : {
+        "helpContent" : [
+          {
+            "text" : "Shows the time it took between a message being read and being engaged with."
+          },
+          {
+            "label": "Average Engagement time:"
+          },
+          {
+            "text": "Average Engagement time of messages that are being read and being engaged with in less than 12 hours."
+          }
+        ]
+      },
+      "subscriptionChange" : {
+        "helpContent" : [
+          {
+            "legend": "New:",
+            "text" : " Subscription added in our system this day."
+          },
+          {
+            "legend": "Canceled:",
+            "text" : " Subscription removed in our system this day."
+          }
+        ]
+      },
+      "topNodes" : {
+        "helpContent" : [
+          {
+            "text" : "Shows top 50 nodes based on visits to these nodes and top 50 nodes based on number of clicks."
+          }
+        ]
+      },
+      "topActions" : {
+        "helpContent" : [
+          {
+            "text" : "Shows top 30 actions based on clicks. Actions include buttons, links, quicktext and menu items."
+          }
+        ]
+      },
+      "topTextInputs" : {
+        "helpContent" : [
+          {
+            "text" : "Shows top 50 freeform text messages (not quicktext) sent by the users."
+          }
+        ]
+      },
+      "topContentItems" : {
+        "helpContent" : [
+          {
+            "text" : "Shows top 50 content items based on clicks."
+          }
+        ]
+      },
+      "referrals" : {
+        "helpContent" : [
+          {
+            "legend": "New:",
+            "text" : " First time use of reference id by a user."
+          },
+          {
+            "legend": "Repeat:",
+            "text" : " Repeat use of reference id by a user."
+          }
+        ]
+      },
+      "nodeAnalysis": {
+        "helpContent" : [
+          {
+            "text" : "You must select a Node to see the following data:"
+          },
+          {
+            "legend": "Top 50 From Nodes:",
+            "text" : " Top 50 nodes the user came from/was at before the selected node."
+          },
+          {
+            "legend": "Top 50 To Nodes:",
+            "text" : " Top 50 nodes the user went to from/after the selected node."
+          },
+          {
+            "legend": "Top Actions From Node:",
+            "text" : " Top 10 actions taken from the selected node."
+          },
+          {
+            "legend": "Top Text Inputs from Node:",
+            "text" : " Top 50 text input from the selected node."
+          }
+        ]
+      }
+    }
+}

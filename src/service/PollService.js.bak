@@ -1,0 +1,36 @@
+import {
+  polls as pollsService,
+  pollSummaries as pollSummariesService,
+} from '../db/botData/services';
+import { lang } from 'botworx-utils/lib/lang';
+
+
+class PollingService {
+
+  save(poll) {
+    return pollsService.save(poll);
+  }
+
+  createPoll(poll) {
+    return pollsService.create(poll);
+  }
+
+  deletePoll(id) {
+    return pollsService.removeById(id);
+  }
+
+  getAllPolls(botId) {
+    return pollsService.findAllPolls(botId);
+  }
+  getPollStatus(poll) {
+    return pollsService.pollStatus(poll);
+  }
+  getPollData(pollId) {
+    return pollsService.findById(pollId);
+  }
+  getAllLanguages() {
+    return lang.langs();
+  }
+
+}
+export default new PollingService();

@@ -1,0 +1,88 @@
+@import "../../components/variables.css";
+.root {
+    padding: 20px;
+}
+
+.topSection {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+}
+
+.section {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+    min-height: 602px;
+}
+
+.detailLabel {
+    font-weight: bold;
+    min-width: 100px;
+    display: inline-block;
+}
+
+.actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.action {
+    flex: 0 0 auto;
+    margin: 0 10px 0 0;
+}
+
+.botForm {
+    max-width: 480px;
+}
+
+.addBotButton {
+    margin: 10px 0;
+}
+
+.createBotButton {
+    width: 100px;
+    margin: 10px 0;
+}
+
+.createForm {
+    max-width: 380px;
+    margin: 10px 0;
+}
+
+.select {
+    max-width: 600px;
+}
+
+.createBot {
+    margin-left: -5px;
+    margin-top: -12px;
+}
+
+.headerelem {
+    display: inline-block;
+}
+
+.icon {
+    display: inline-block;
+    padding: 2px 2px 2px 2px;
+    width: 25px;
+    height: 25px;
+    vertical-align: middle;
+    fill: white;
+    border-color: #3b5998;
+    background: #3b5998;
+}
+
+.errotText {
+    color: red;
+    font-weight: bold;
+}
+
+.noresultmsg{
+    background-color: #FFFFC1;
+    text-align: center;
+    height: 43px;
+    padding-top: 13px;
+    border-radius: 4px;
+    color: #757575;
+    font-size: 13px;
+}

@@ -1,0 +1,46 @@
+@import '../../components/variables.css';
+
+.formRow {
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.selectBot {
+    flex-grow: 2;
+    margin-right: 50px;
+}
+
+.startDate {
+    flex-grow: 1;
+}
+
+.endDate {
+ flex-grow: 1;
+}
+
+.goButton {
+    flex-grow: 0;
+}
+
+.charts {
+    flex-wrap: wrap;
+    margin-top: 20px;
+    justify-content: space-between;
+}
+
+.tabs {
+    /*border-top: 1px solid #ccc;*/
+    margin-top: 10px;
+}
+
+.tabs > :first-child {
+    background: transparent !important;
+}
+
+.tabs > :nth-child(2) {
+    background: #ccc;
+}
+
+.tabs > :first-child button {
+    color: black !important;
+}

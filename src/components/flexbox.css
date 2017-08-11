@@ -1,0 +1,42 @@
+.column {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: stretch;
+}
+
+.columnItem {
+    flex: 0 0 auto;
+}
+
+.alignStartItem {
+    align-self: flex-start;
+}
+
+.fullHeight {
+    height: 100%;
+}
+
+.alignCenter {
+    align-items: center;
+}
+
+.row {
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
+}
+
+.rowItem {
+    flex: 1 1 auto;
+}
+
+.withHorzMargin {
+    margin-left:5px;
+    margin-right: 5px;
+}
+
+.withVertMargin {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}

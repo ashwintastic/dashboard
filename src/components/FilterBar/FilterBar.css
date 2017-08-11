@@ -1,0 +1,10 @@
+@import "../variables.css";
+
+.filterChip {
+    margin: 4px;
+    display: inline-block;
+}
+
+.wrapper {
+    display: flex;
+}

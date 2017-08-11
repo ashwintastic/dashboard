@@ -1,0 +1,1994 @@
+/**
+ * React Starter Kit (https://www.reactstarterkit.com/)
+ *
+ * Copyright © 2014-2016 Kriasoft, LLC. All rights reserved.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE.txt file in the root directory of this source tree.
+ */
+
+import 'babel-polyfill';
+import path from 'path';
+import express from 'express';
+import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
+import expressJwt from 'express-jwt';
+// import expressGraphQL from 'express-graphql';
+import jwt from 'jsonwebtoken';
+import React from 'react';
+import ReactDOM from 'react-dom/server';
+import UniversalRouter from 'universal-router';
+import PrettyError from 'pretty-error';
+import getMuiTheme from 'material-ui/styles/getMuiTheme';
+import moment from 'moment';
+
+import Html from './components/Html';
+//import HtmlSimple from './components/HtmlSimple';
+import { ErrorPageWithoutStyle } from './pages/error/ErrorPage';
+import errorPageStyle from './pages/error/ErrorPage.css';
+import passport from './core/passport';
+import routes from './routes';
+import createHistory from './core/createHistory';
+import assets from './assets'; // eslint-disable-line import/no-unresolved
+import configureStore from './store/configureStore';
+import { setRuntimeVariable } from './actions/runtime';
+import { port, auth, db, host } from './config';
+import accountService from './service/AccountService';
+import userService from './service/UserService';
+import botService from './service/BotService';
+import flowService from './service/FlowService';
+import broadcastService from './service/BroadcastService';
+import userAccessService from './service/UserAccessService';
+import mailerService from './service/MailerService';
+import logoImage from './components/Header/logo_full.png';
+import loadingImage from './components/Chart/gif-load.gif';
+import testlinkService from './service/TestlinkService';
+import flowOverridesService from './service/FlowOverridesService';
+
+import { accountRouter, facebookRouter, testingRouter, schemaRouter } from './apis';
+import _ from 'lodash';
+
+import {
+    hasAccess,
+    removeRole,
+    postRead,
+    preSave,
+    preCreate,
+    preDelete
+} from './security';
+
+import {
+    getNewUsers,
+    getActiveUsers,
+    getActiveSessions,
+    getGenderCount,
+    getCountsByCountry,
+    getMessageSession,
+    getCountsByLocale,
+    countByResponseDelay,
+    countByReadDelay,
+    getMessageCounts,
+    getCountsByProfileAge,
+    getMessageUser,
+    getTotalUsers,
+} from './core/elastic';
+
+var http = require('http');
+var https = require('https');
+var fetch = require('node-fetch');
+const app = express();
+
+
+// importing acl
+var node_acl = require('acl');
+var acl;
+var allowedRoles;
+var CryptoJS = require("crypto-js");
+
+var mongodb = require('mongodb');
+
+// Setting up node_acl
+async function authorization_setup(error, db) {
+
+    var mongoBackend = new node_acl.mongodbBackend(db, 'acl_');
+
+    // Create a new access control list by providing the mongo backend
+
+    acl = new node_acl(mongoBackend);
+
+    // Defining roles and routes
+    const systemRoles = await userService.getAllUserRoles();
+    const allows = [];
+    systemRoles.map(x => {
+        delete x._id;
+        allows.push(x);
+    })
+    allowedRoles = allows;
+
+    acl.allow(allowedRoles);
+}
+
+function getAllowedPermissions(userRole, entity) {
+    var allowedPerms = [];
+    allowedRoles.map(x => {
+        if ((x.roles).indexOf(userRole) !== -1) {
+            (x.allows).map(y => {
+                if ((y.resources).indexOf(entity) !== -1) {
+                    allowedPerms = y.permissions;
+                    return;
+                }
+            })
+        }
+    })
+
+    return allowedPerms;
+}
+
+// Connecting to mongo database and setup authorization
+mongodb.connect(db.aclUrl, authorization_setup);
+
+async function getUserRole(userId) {
+    const currentUserRole = (await userAccessService.getUserAccessDoc(userId))[0].role;
+    return currentUserRole;
+}
+
+async function getUserAccessDocs(userId) {
+    const userAccessDocs = await userAccessService.getUserAccessDoc(userId);
+    return userAccessDocs;
+}
+
+// get user accounts/bots list
+async function getUserEntitiesList(dashboardUserId, entityType) {
+    let entityList = [];
+    let entityDocs = await userAccessService.getEntityDocs(dashboardUserId, entityType);
+    entityDocs.map(x => {
+        entityList.push(x.entityId);
+    });
+    return entityList;
+}
+
+const loginSuccess = async (req, res) => {
+    const expiresIn = 60 * 60 * 2; // 2 hours
+    const currentUserRole = await getUserRole(req.user.id);
+    const token = jwt.sign({
+        id: req.user._id,
+        email: req.user.email,
+    }, auth.jwt.secret, { expiresIn });
+
+    res.cookie('id_token', token, { maxAge: 1000 * expiresIn, httpOnly: true });
+    if (currentUserRole) {
+        acl.addUserRoles(req.user.id, currentUserRole);
+    }
+    acl.allow(allowedRoles);
+};
+
+//
+// Tell any CSS tooling (such as Material UI) to use all vendor prefixes if the
+// user agent is not known.
+// -----------------------------------------------------------------------------
+global.navigator = global.navigator || {};
+global.navigator.userAgent = global.navigator.userAgent || 'all';
+
+//
+// Register Node.js middleware
+// -----------------------------------------------------------------------------
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(cookieParser());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+//
+// Authentication
+// -----------------------------------------------------------------------------
+// /^\/testing\//,
+//     '/login',
+const unAuthenticatedPaths = [
+    '/api/login',
+    '^(?!\/api\/).*$'
+];
+app.use(expressJwt({
+    secret: auth.jwt.secret,
+    credentialsRequired: false,
+    getToken: req => req.cookies.id_token
+}));
+// .unless({ path: unAuthenticatedPaths }));
+
+app.get(
+    '/logout',
+    async (req, res) => {
+        if (req.user) {
+            const currentUserRole = await getUserRole(req.user.id);
+            removeRole(acl, req.user.id, currentUserRole);
+            res.clearCookie('id_token');
+        }
+        res.redirect('/');
+    }
+);
+
+app.get(
+    '/sessionstatus',
+    (req, res) => {
+        const sessionState = (typeof (req.cookies.id_token) === "undefined");
+        res.send(sessionState);
+    }
+);
+
+app.put(
+    '/api/testlink/:testlinkId/status/:status',
+    async (req, res) => {
+        var testLink = {};
+        try {
+            const testlinkId = req.params.testlinkId;
+            testLink = await flowService.getTestLink(testlinkId);
+            testLink.status = req.params.status;
+            if (testLink.status === "inactive") {
+                testLink.expiry = moment().add('day', 1);
+            }
+            await flowService.saveTestLinks(testLink);
+
+            if (testLink.status !== "deactivated" && testLink.status !== "active") {
+                const bot = await botService.getBotData(testLink.botId);
+                const flow = await flowService.getFlowData(testLink.flowId);
+                sendTestInvitationMail(testLink, bot.name, flow.description);
+            }
+            if (testLink.status === "deactivated") {
+                removeFlowOverrides([].push(testlinkId));
+            }
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({ testLink });
+    });
+
+app.delete(
+    '/api/flow/:flowId/testlink/deletetester/:testerId',
+    async (req, res) => {
+        try {
+            const testerId = req.params.testerId;
+            const flowId = req.params.flowId;
+            const testLinks = await testlinkService.getTestLinksForTester(testerId);
+            const testLinkIds = testLinks.map(function (testLink) {
+                return testLink._id;
+            });
+            await testlinkService.deleteTester(testerId, flowId);
+            removeFlowOverrides(testLinkIds);
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    });
+
+function removeFlowOverrides(testLinkIds) {
+    for (var i = 0, len = testLinkIds.length; i < len; i++) {
+        flowOverridesService.deleteFlowOverridesForTestLink(testLinkIds[i]);
+    }
+}
+/*
+
+  // GET /
+app.get('/', function (req, res) {
+  res.render('layout', {
+    content: ReactDOMServer.renderToString(<HelloWorld />)
+  });
+});
+
+*/
+
+app.use(passport.initialize());
+
+app.post(
+    '/login',
+    passport.authenticate('local', { failureRedirect: '/?authfail=true', session: false }),
+    async (req, res) => {
+        console.log('login success ---------')
+        await loginSuccess(req, res);
+        res.redirect('/accounts');
+    }
+);
+
+app.post(
+    '/api/login',
+    passport.authenticate('local', { session: false }),
+    async (req, res) => {
+        console.log("success")
+        await loginSuccess(req, res);
+        res.send(getCurrentUser(req.user.id));
+    }
+);
+
+
+// app.post('/login', function(req, res, next) {
+//   passport.authenticate('local', function(err, user, info) {
+//     if (err) {
+//       return next(err); // will generate a 500 error
+//     }
+//     // Generate a JSON response reflecting authentication status
+//     if (! user) {
+//       return res.send(401,{ success : false, message : 'authentication failed' });
+//     }
+//     req.login(user, function(err){
+//       if(err){
+//         return next(err);
+//       }
+//       return res.send({ success : true, message : 'authentication succeeded' });
+//     });
+//   })(req, res, next);
+// });
+
+
+app.get('/login/facebook',
+    passport.authenticate('facebook', {
+        //scope: ['email', 'user_location'],
+        scope: ['email'], // removing user loaction as it is not needed for now
+        session: false,
+    })
+);
+
+app.get('/login/facebook/return',
+    passport.authenticate('facebook', { failureRedirect: '/', session: false }),
+    async (req, res) => {
+        await loginSuccess(req, res);
+        res.redirect('/accounts');
+    }
+);
+
+async function getCurrentUser(userId) {
+    const user = await userService.findUser(userId);
+    const accounts = await accountService.findAccountByAdmin(user);
+    const currentUserRole = await getUserRole(userId);
+    return {
+        id: user.id,
+        email: user.email,
+        roles: currentUserRole,
+        tokens: user.tokens ? user.tokens : {},
+    }
+}
+
+app.get('/api/userDetails', async (req, res) => {
+    console.log('in userdeatils --- ', req.user)
+    let currentUsr = {};
+    if (req.user) {
+<<<<<<< Updated upstream
+        const user = await userService.findUser(req.user.id);
+        const accounts = await accountService.findAccountByAdmin(user);
+        const currentUserRole = await getUserRole(req.user.id);
+
+        res.send({
+            id: req.user.id,
+            email: req.user.email,
+            roles: currentUserRole,
+            tokens: req.user.tokens ? req.user.tokens : {},
+        });
+    } else {
+        res.sendStatus(401);
+=======
+        currentUsr = await getCurrentUser(req.user.id)
+>>>>>>> Stashed changes
+    }
+    res.send(currentUsr);
+});
+
+// get users associated with account
+app.get('/api/accounts/:accountId/userlist', async (req, res) => {
+    const accountId = req.params.accountId;
+    const userAccessDocs = await userAccessService.getUsersByEntity(accountId);
+    const loggedInUserId = req.user.email;
+    const userEntries = [];
+
+    await Promise.all(userAccessDocs.map(async x => {
+        const user = await userService.findUser(x.dashboardUserId);
+        if (user && (user.email !== loggedInUserId)) {
+            user.roles = x.role;
+            user.accounts = await getUserEntitiesList(x.dashboardUserId, 'account');
+            user.bots = await getUserEntitiesList(x.dashboardUserId, 'bot');
+            userEntries.push(user);
+        }
+    }));
+
+    res.send({ userEntries });
+});
+
+// get users associated with bot
+app.get('/api/bots/:botId/userlist', async (req, res) => {
+    const botId = req.params.botId;
+    const userAccessDocs = await userAccessService.getUsersByEntity(botId);
+    const loggedInUserId = req.user.email;
+    const userEntries = [];
+
+    await Promise.all(userAccessDocs.map(async x => {
+        const user = await userService.findUser(x.dashboardUserId);
+        if (user && (user.email !== loggedInUserId)) {
+            user.roles = x.role;
+            user.accounts = await getUserEntitiesList(x.dashboardUserId, 'account');
+            user.bots = await getUserEntitiesList(x.dashboardUserId, 'bot');
+            userEntries.push(user);
+        }
+
+    }));
+
+    res.send({ userEntries });
+});
+
+
+// get all users
+app.get('/api/userlist', async (req, res) => {
+    const allUsers = await userService.getAllUsers();
+
+    res.send({ allUsers });
+});
+
+// Send a mail to the the users testing the flow
+async function sendUserCreationMail(UserName, email, pwd) {
+    const subject = `Botworx account has been created for you.`;
+    const body = `
+                <p>Hi ${UserName},</p>
+                <p>
+                    An account has been created for you with following details:
+                </p >
+                <p><b>Username:</b> ${email}</p>
+                <p><b>Password:</b> ${pwd}</p>
+                <p>You can proceed with login by clicking on below link.</p>
+                <a href='${host}'>Botworx login</a>
+                <p>
+                    <span>Regards,</span>
+                    <br />
+                    <span>Botworx</span>
+                </p>`;
+    return mailerService.sendMail('test@botworx.ai', subject, body, [email]);
+}
+
+// save new account user
+app.post(
+    '/api/accounts/:accountId/userlist',
+    async (req, res) => {
+        try {
+            const userDetail = req.body.userEntry;
+            const userAccounts = userDetail.accounts;
+            const userBots = userDetail.bots || [];
+            const pwd = userDetail.auth.local.password;
+            userDetail.auth.local.password = (CryptoJS.MD5(userDetail.auth.local.password)).toString();
+            console.log('user detail', userDetail);
+            const emailConfirmed = req.body.emailConfirmed;
+            const existingUser = await userService.getDashboardUser(userDetail.email);
+            if (existingUser.length) {
+                res.status(409).send({ message: 'User with the same mail id already exists' });
+                return;
+            }
+            const userToBeCreated = Object.assign({}, userDetail);
+            delete userToBeCreated.accounts;
+            delete userToBeCreated.roles;
+            delete userToBeCreated.bots;
+            await userService.createNewUser(userToBeCreated, emailConfirmed);
+            await sendUserCreationMail(userDetail.FirstName, userDetail.email, pwd);
+            const newUser = (await userService.getDashboardUser(userDetail.email))[0];
+            // TO-Do: add role check in security file
+            if (userDetail.roles === 'SuperAdmin' || userDetail.roles === 'BotworxAdmin') {
+                await userAccessService.createUserAccessDoc(newUser._id, userDetail.roles, '*', '*');
+            }
+            else {
+                if (newUser && userAccounts.length) {
+                    await Promise.all(userAccounts.map(x => {
+                        return userAccessService.createUserAccessDoc(newUser._id, userDetail.roles, 'account', x)
+                    }));
+                }
+                if (newUser && userBots.length) {
+                    await Promise.all(userBots.map(x => {
+                        return userAccessService.createUserAccessDoc(newUser._id, userDetail.roles, 'bot', x)
+                    }));
+                }
+            }
+            res.status(200).send({});
+
+        } catch (e) {
+            console.log(e);
+            res.send({ e });
+        }
+    }
+);
+
+// save new bot user
+app.post(
+    '/api/accounts/:accountId/bots/:botId/userlist',
+    async (req, res) => {
+        try {
+            const userDetail = req.body.userEntry;
+            const userAccounts = userDetail.accounts;
+            const userBots = userDetail.bots;
+            const pwd = userDetail.auth.local.password;
+            userDetail.auth.local.password = (CryptoJS.MD5(userDetail.auth.local.password)).toString();
+            console.log('user detail', userDetail);
+            const emailConfirmed = req.body.emailConfirmed;
+            const existingUser = await userService.getDashboardUser(userDetail.email);
+            if (existingUser.length) {
+                console.log("existingUser", existingUser);
+                res.status(409).send({ message: 'User with the same mail id already exists' });
+                return;
+            }
+            const userToBeCreated = Object.assign({}, userDetail);
+            delete userToBeCreated.accounts;
+            delete userToBeCreated.bots;
+            delete userToBeCreated.roles;
+
+            await userService.createNewUser(userToBeCreated, emailConfirmed);
+            await sendUserCreationMail(userDetail.FirstName, userDetail.email, pwd);
+            const newUser = (await userService.getDashboardUser(userDetail.email))[0];
+            if (userDetail.roles === 'SuperAdmin' || userDetail.roles === 'BotworxAdmin') {
+                await userAccessService.createUserAccessDoc(newUser._id, userDetail.roles, '*', '*');
+            }
+            else {
+                if (newUser && userAccounts.length) {
+                    await Promise.all(userAccounts.map(x => {
+                        if (x) {
+                            return userAccessService.createUserAccessDoc(newUser._id, userDetail.roles, 'account', x)
+                        }
+                    }));
+                }
+                if (newUser && userBots.length) {
+                    await Promise.all(userBots.map(x => {
+                        if (x) {
+                            return userAccessService.createUserAccessDoc(newUser._id, userDetail.roles, 'bot', x)
+                        }
+                    }));
+                }
+            }
+            res.status(200).send({});
+
+        } catch (e) {
+            console.log(e);
+            res.send({ e });
+        }
+    }
+);
+
+// save existing userdata
+app.post(
+    '/api/accounts/:accountId/edituser/:userId',
+    async (req, res) => {
+        try {
+            const userDetail = req.body.userEntry;
+            const userId = req.params.userId;
+            console.log('user detail', userDetail);
+            const user = await userService.findUser(userId);
+            user.FirstName = userDetail.FirstName;
+            user.LastName = userDetail.LastName;
+            user.email = userDetail.email;
+            await userService.save(user);
+
+            var userAccountAccesses = await userAccessService.getEntityDocs(userId, 'account');
+            var userBotAccesses = await userAccessService.getEntityDocs(userId, 'bot');
+
+            await Promise.all(userAccountAccesses.map(async x => {
+                if (userDetail.accounts.indexOf(x.entityId) === -1) {
+                    await userAccessService.deleteUserAccessDoc(x._id);
+                }
+            }));
+            await Promise.all(userDetail.accounts.map(async y => {
+                if (y) {
+                    await userAccessService.createUserAccessDoc(userId, userDetail.roles, 'account', y)
+                }
+
+            }));
+            await Promise.all(userBotAccesses.map(async x => {
+                if (userDetail.bots.indexOf(x.entityId) === -1) {
+                    await userAccessService.deleteUserAccessDoc(x._id);
+                }
+            }));
+            await Promise.all(userDetail.bots.map(async y => {
+                if (y) {
+                    await userAccessService.createUserAccessDoc(userId, userDetail.roles, 'bot', y)
+                }
+            }));
+
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// link existing user to account
+app.post(
+    '/api/accounts/:accountId/linkExistinguser',
+    async (req, res) => {
+        const _id = req.body.id;
+        const accountId = req.body.accountId;
+        const existingUser = await userService.findUser(_id);
+
+        if (existingUser) {
+            if (existingUser.accounts && existingUser.accounts.length) {
+                existingUser.accounts.push(accountId);
+            }
+            else {
+                existingUser.accounts = [];
+                existingUser.accounts.push(accountId);
+            }
+            await userService.save(existingUser);
+        }
+        res.send({});
+    }
+);
+
+// link existing user to bot
+app.post(
+    '/api/accounts/:accountId/bots/:botId/linkExistinguser',
+    async (req, res) => {
+        try {
+            const _id = req.body.id;
+            const botId = req.body.botId;
+            const existingUser = await userService.findUser(_id);
+            if (existingUser) {
+                if (existingUser.bots && existingUser.bots.length) {
+                    existingUser.bots.push(botId);
+                }
+                else {
+                    existingUser.bots = [];
+                    existingUser.bots.push(botId);
+                }
+                await userService.save(existingUser);
+            }
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// remove account user
+app.delete(
+    '/api/accounts/:accountId/userlist/:userId',
+    async (req, res) => {
+        try {
+            const userId = req.params.userId;
+            const accountId = req.params.accountId;
+            const accountDoc = await userAccessService.getAccessDocByEntityId(userId, accountId);
+            await userAccessService.deleteUserAccessDoc(accountDoc._id);
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// remove bot user
+app.delete(
+    '/api/bots/:botId/userlist/:userId',
+    async (req, res) => {
+        try {
+            const userId = req.params.userId;
+            const botId = req.params.botId;
+            const botDoc = await userAccessService.getAccessDocByEntityId(userId, botId);
+            await userAccessService.deleteUserAccessDoc(botDoc._id);
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// save account data
+app.post(
+    '/api/accounts/editAccount/:accountId',
+    async (req, res) => {
+        try {
+            const accountDetail = req.body.accountEntry;
+            const accountId = req.params.accountId;
+            const account = await accountService.findAccount(accountId);
+
+            account.name = accountDetail.name;
+            account.managerEmail = accountDetail.managerEmail;
+            await accountService.saveAccountDetail(account);
+
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// create new account
+app.post(
+    '/api/accounts/createAccount',
+    async (req, res) => {
+        try {
+            const accountDetail = req.body.accountEntry;
+            const userId = req.user.id;
+            accountDetail.manager = 'dummyManager';
+            const existingAccount = await accountService.getAccountByDetail(accountDetail.name)
+            if (!(existingAccount.length)) {
+                await accountService.createNewAccount(accountDetail);
+                const user = await userService.findUser(userId);
+                if (user) {
+                    const newaccount = await accountService.getAccountByDetail(accountDetail.name)
+                    if (newaccount.length !== 0) {
+                        console.log('newaccount', newaccount[0]._id);
+                        await user.accounts.push(newaccount[0]._id);
+                        await userService.save(user);
+                    }
+                }
+            }
+            else {
+                console.log("existingAccount", existingAccount);
+            }
+
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// delete existing account
+app.delete(
+    '/api/accounts/:accountId',
+    async (req, res) => {
+        try {
+            const accountId = req.params.accountId;
+            await accountService.deleteAccountEntry(accountId);
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+//added by Pandari
+app.get(
+    '/api/accounts/list/:userId',
+    async (req, response) => {
+        var userId = req.params.userId;
+        const userRole = await getUserRole(req.user.id);;
+        const permissionFlag = await hasAccess(acl, req.user.id, 'account', 'viewAccount');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        const allAccounts = await accountService.getAccountsList();
+        const userAccessDocs = await getUserAccessDocs(req.user.id);
+        const accounts = await postRead(userAccessDocs, allAccounts, 'account');
+        const allowedPermissions = await getAllowedPermissions(userRole, 'account');
+
+        response.send({ accounts, allowedPermissions });
+    });
+
+app.get(
+    '/api/accounts/:accountId',
+    async (req, res) => {
+        const accountId = req.params.accountId;
+        const permissionFlag = await hasAccess(acl, req.user.id, 'account', 'viewAccount');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        const account = await accountService.findAccount(accountId);
+        res.send({ account });
+    }
+);
+
+// adding api to get all flows
+app.get(
+    '/api/accounts/:accountId/flowlist',
+    async (req, res) => {
+        const allFlows = await flowService.getAllFlows();
+        res.send({ allFlows });
+    }
+);
+
+// app.use('/api/accounts', accountRouter);
+
+// adding api to create new bot
+
+app.post(
+    '/api/accounts/:accountId/botlist',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'bot', 'createBot');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const name = req.body.name;
+            const account = req.body.account;
+            const description = req.body.description;
+            const flowId = req.body.flowId;
+            const userAccessDocs = await getUserAccessDocs(req.user.id);
+            if (preCreate(userAccessDocs, account, 'account')) {
+                await botService.createNewBotDoc(name, account, description, flowId);
+            }
+        }
+        catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+        res.send({});
+    });
+
+// adding api to save bot data
+
+app.post(
+    '/api/accounts/:accountId/botlist/:botId',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'bot', 'saveBot');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const botId = req.params.botId;
+            const bot = await botService.findBot(botId);
+            bot.name = req.body.botName;
+            bot.description = req.body.description;
+            const userAccessDocs = await getUserAccessDocs(req.user.id);
+            if (preSave(userAccessDocs, bot, 'bot')) {
+                await botService.save(bot);
+            }
+
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+        res.send({});
+    });
+
+// get subscription nodes for bot
+app.get(
+    '/api/subscription_broadcast/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        const subscriptionEntries = await broadcastService.getSubscriptionsForBot(req.params.botId);
+        res.send({
+            subscriptionEntries,
+        });
+    }
+);
+
+// get all broadcast entries for bot
+app.get(
+    '/api/broadcast/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        const broadcastEntries = await broadcastService.getBroadcastEntriesForBot(req.params.botId);
+        const userRole = await getUserRole(req.user.id);;
+        const allowedPermissions = await getAllowedPermissions(userRole, 'broadcast');
+        res.send({
+            broadcastEntries,
+            allowedPermissions,
+        });
+    }
+);
+
+app.get(
+    '/api/broadcast/existingflownodes/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        const bot = await botService.getBotData(req.params.botId);
+        const flowId = bot.flowId;
+        const flow = await flowService.getFlowData(flowId);
+        const existingFlowNodes = Object.keys(flow.nodes);
+        res.send({
+            existingFlowNodes,
+        });
+    }
+);
+
+// create/edit broadcast entry
+app.post(
+    '/api/broadcast/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        try {
+            const botId = req.params.botId;
+            const broadcastEntry = req.body.broadcastEntry;
+            // broadcastEntry.date = moment(broadcastEntry.date).format('YYYY-MM-DD');
+            // broadcastEntry.time = moment(broadcastEntry.time).format('HH:mm A');
+            if (broadcastEntry.type === "immediate") {
+                broadcastEntry.repeat = "None";
+            }
+
+            if (broadcastEntry._id) {
+                await broadcastService.saveBroadcastEntry(broadcastEntry);
+                let broadcastNodeEntry = await broadcastService.getBroadcastNodeEntry(broadcastEntry._id)
+                broadcastNodeEntry.nodes = broadcastEntry.nodes;
+                await broadcastService.getBroadcastNodeEntry(broadcastNodeEntry)
+            }
+            else {
+                const broadcast = await broadcastService.createBroadcastEntry(broadcastEntry);
+            }
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+app.get(
+    '/api/broadcast/accounts/:accountId/bots/:botId/:broadcastId',
+    async (req, res) => {
+        const broadcastId = req.params.broadcastId;
+        const updatedBroadcastEntry = await broadcastService.getBroadcastEntry(broadcastId);
+        res.send({ updatedBroadcastEntry });
+    }
+);
+
+app.delete(
+    '/api/broadcast/accounts/:accountId/bots/:botId/:broadcastId',
+    async (req, res) => {
+        try {
+            const broadcastId = req.params.broadcastId;
+            await broadcastService.deleteBroadcastEntry(broadcastId);
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// getting botlist
+
+app.get(
+    '/api/accounts/:accountId/bots',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'account', 'viewBots');
+        const userRole = await getUserRole(req.user.id);;
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        const allbots = await botService.getBotsForAccount(req.params.accountId);
+        const userAccessDocs = await getUserAccessDocs(req.user.id);
+        const bots = await postRead(userAccessDocs, allbots, 'bot');
+        const allowedPermissions = await getAllowedPermissions(userRole, 'bot');
+
+        res.send({
+            bots,
+            allowedPermissions
+        });
+    }
+);
+
+// adding api to delete selected bot
+
+app.delete(
+    '/api/accounts/:accountId/botlist/:botId',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'bot', 'deleteBot');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const botId = req.params.botId;
+            const botData = await botService.getBotData(botId);
+            const userAccessDocs = await getUserAccessDocs(req.user.id);
+            if (preDelete(userAccessDocs, botData, 'bot')) {
+                await botService.deleteBotData(botId);
+            }
+
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+        res.send({});
+    });
+
+// adding api to create new platform bot
+
+app.post(
+    '/api/accounts/:accountId/bots/:botId/platformbot',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'platformBot', 'createPlatformbot');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const botId = req.body.botId;
+            const userAccessToken = req.body.userAccessToken;
+            const platform = req.body.platform;
+            const fbPage = req.body.platformBot;
+            const name = fbPage.name;
+            const category = fbPage.category;
+            const accessToken = fbPage.access_token;
+            const platformBotId = fbPage.id;
+            const config = { pageAccessToken: accessToken };
+
+            const publishingUserResp = await fetch(`https://graph.facebook.com/me?access_token=${userAccessToken}`);
+            const publishingUser = await publishingUserResp.json();
+            const deploymentDetails = { user: publishingUser, page: { name, category } };
+
+            const fetchUrl = 'https://graph.facebook.com/v2.6/' + platformBotId +
+                '/subscribed_apps?access_token=' + accessToken;
+            const resp = await fetch(fetchUrl, { method: 'POST' });
+            const pageStatus = await resp.json();
+
+            if (pageStatus.success) {
+                await botService.createPlatformBotDoc({ botId, platformBotId, name, config, platform, deploymentDetails });
+            }
+            res.send({ pageStatus });
+        }
+        catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+    });
+
+// get platformBot info
+app.get(
+    '/api/accounts/:accountId/bots/:botId/platformbot',
+    async (req, res) => {
+        const botId = req.params.botId;
+        const botdata = await botService.getBotData(botId);
+        //if (postRead(req.user, botdata, 'platformBot')) {
+        const platformBots = await botService.getPlatformBots(botId);
+        res.send({ platformBots });
+        //}
+    }
+);
+
+// remove platform bot
+app.delete(
+    '/api/accounts/:accountId/bots/:botId/platformbot/:platformBotId/:accesstoken',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'platformBot', 'deletePlatformbot');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const platformBotId = req.params.platformBotId; // page id
+            const botId = req.params.botId; // bot id
+            const accessToken = req.params.accesstoken;
+
+            const fetchUrl = 'https://graph.facebook.com/v2.6/' + platformBotId +
+                '/subscribed_apps?access_token=' + accessToken;
+
+            const resp = await fetch(fetchUrl, { method: 'DELETE' });
+            const pageStatus = await resp.json();
+            if (pageStatus.success) {
+                await botService.deletePageFromBot(platformBotId, botId);
+            }
+            else {
+                console.log('throw error');
+            }
+            res.send({ pageStatus });
+
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+    });
+
+// adding api for flow page
+app.get(
+    '/api/flow/account/:accountId/bot/:botId',
+    async (req, res) => {
+        const botId = req.params.botId;
+        const userRole = await getUserRole(req.user.id);;
+        const botdata = await botService.getBotData(botId);
+        const userAccessDocs = await getUserAccessDocs(req.user.id);
+        if (postRead(userAccessDocs, botdata, 'bot')) {
+            const flows = await flowService.getFlowsForBot(botId);
+            const allowedPermissions = await getAllowedPermissions(userRole, 'flow');
+
+            res.send({ flows, allowedPermissions });
+        }
+    }
+);
+
+// adding api for fetching flow data
+app.get(
+    '/api/flow/account/:accountId/bot/:botId/flow/:flowId',
+    async (req, res) => {
+        const flowId = req.params.flowId;
+        const botdata = await botService.getBotData(req.params.botId);
+        const flow = await flowService.getFlowData(flowId);
+        const userAccessDocs = await getUserAccessDocs(req.user.id);
+        if (postRead(userAccessDocs, botdata, 'bot')) {
+            res.send({ flow });
+        }
+    }
+);
+
+// adding api for fetching bot data
+app.get(
+    '/api/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        const botId = req.params.botId;
+        const bot = await botService.getBotData(botId);
+        const userAccessDocs = await getUserAccessDocs(req.user.id);
+        if (postRead(userAccessDocs, bot, 'bot')) {
+            res.send({ bot });
+        }
+
+    }
+);
+
+// save or create new flow
+/* eslint-disable no-empty */
+app.post(
+    '/api/flow/bot/:botId/:flowId',
+    async (req, res) => {
+        const flowId = req.params.flowId;
+        const botId = req.params.botId;
+        const newFlow = req.body.flowJson;
+        const permissionFlag = await hasAccess(acl, req.user.id, 'flow', 'saveFlow');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            if (flowId !== -1 && flowId !== '-1') {
+                await flowService.saveFlowData(newFlow);
+            }
+            else {
+                const botdata = await botService.getBotData(botId);
+                const userAccessDocs = await getUserAccessDocs(req.user.id);
+                if (preSave(userAccessDocs, botdata, 'bot')) {
+                    await flowService.createFlowDoc(botId, newFlow);
+                }
+            }
+            //}
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+        res.send({});
+    });
+/* eslint-enable no-empty */
+
+// delete flow
+app.delete(
+    '/api/flow/bot/:botId/:flowId',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'flow', 'deleteFlow');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+        }
+        else {
+            try {
+                const flowId = req.params.flowId;
+                const flow = await flowService.getFlowData(flowId);
+                const userAccessDocs = await getUserAccessDocs(req.user.id);
+                if (preDelete(userAccessDocs, flow, 'flow')) {
+                    await flowService.deleteFlowData(flowId);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+            res.send({});
+        }
+    });
+
+// clone flow
+app.put(
+    '/api/flow/bot/:botId/:flowId',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'flow', 'cloneFlow');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+        }
+        else {
+            try {
+                const flowId = req.params.flowId;
+                const botId = req.params.botId;
+                const flow = await flowService.getFlowData(flowId);
+                const userAccessDocs = await getUserAccessDocs(req.user.id);
+                if (preCreate(userAccessDocs, flow, 'flow')) {
+                    flow.description = flow.description + '_cloned';
+                    delete flow._id;
+                    flow.botId = '';
+                    await flowService.createFlowDoc(botId, flow);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+            res.send({});
+        }
+    });
+
+app.post(
+    '/api/createTestLink',
+    async (req, res) => {
+        const testers = req.body.testerIds;
+        if (!(testers && testers.length)) {
+            throw new Error('No users to send invitation to.');
+        }
+        const flowId = req.body.flowId;
+        const botId = req.body.botId;
+        const platformBotId = req.body.platformBotId;
+        const testLinks = await createTestLinks({ flowId, botId, testers, platformBotId });
+        res.send({ testLinks });
+    }
+);
+
+async function createTestLinks(params) {
+    var testLinks = [];
+    for (const testerEmail of params.testers) {
+        const testLinkParams = {};
+        testLinkParams.flowId = params.flowId;
+        testLinkParams.botId = params.botId;
+        testLinkParams.testerEmail = testerEmail;
+        // Default to botworx test bot
+        testLinkParams.platformBotId = params.platformBotId || auth.facebook.testPageId;
+        testLinkParams.platform = 'facebook';
+        testLinkParams.expiry = moment().add('day', 1);
+        testLinkParams.status = "inactive";
+        const testLink = await createTestLink(testLinkParams);
+        testLinks.push(testLink);
+    }
+    return testLinks;
+}
+
+async function createTestLink(testLinkParams) {
+    if (!testLinkParams.testerEmail) {
+        return;
+    }
+    let testLink = await testlinkService.createTestLink(testLinkParams);
+    const bot = await botService.getBotData(testLink.botId);
+    const flow = await flowService.getFlowData(testLink.flowId);
+
+    sendTestInvitationMail(testLinkParams, bot.name, flow.description);
+    return testLink;
+}
+
+//to fetch testlinks for a flow
+app.get(
+    '/api/flow/:flowId/testlinks',
+    async (req, res) => {
+        const flowId = req.params.flowId;
+        //const botdata = await botService.getBotData(req.params.botId);
+        let testLinks = await flowService.getTestLinks(flowId);
+        const flowOverridesForFlow = await flowOverridesService.getFlowOverridesForFlow(flowId);
+        const testLinksInFlowOverrides = flowOverridesForFlow.map(function (flowOverride) {
+            return flowOverride['testLinkId'];
+        });
+
+        for (var i = 0, len = testLinks.length, testLink; i < len; i++) {
+            testLink = testLinks[i];
+            testLinks[i].url = getTestlinkUrl(testLink);
+            if (testLink.status === "active") {
+                if (testLinksInFlowOverrides.indexOf(testLink._id) < 0) {
+                    testLinks[i].status = "deactivated";
+                }
+            }
+        }
+        const userAccessDocs = await getUserAccessDocs(req.user.id);
+        if (postRead(userAccessDocs, testLinks, 'testlink')) {
+            res.send({ testLinks });
+        }
+    }
+);
+
+function getTestlinkUrl(testLink) {
+    return `${host}/testing/${testLink._id}`;
+}
+
+// Send a mail to the the users testing the flow
+function sendTestInvitationMail(testLink, botName, flowName) {
+    const subject = `Invitation to test flow for "${botName}" bot`;
+    const testlinkAddress = getTestlinkUrl(testLink);
+    const body = `
+                <p>Hi,</p>
+                <p>You have been invited to test the flow "${flowName}".
+                <br/>
+                Please click on the link below to accept and start testing.
+                <br/><br/>
+                <a href='${testlinkAddress}'>${testlinkAddress}</a>
+                <p>
+                    <span>Regards,</span>
+                    <br />
+                    <span>Botworx</span>
+                </p>`;
+    return mailerService.sendMail('test@botworx.ai', subject, body, [testLink.testerEmail]);
+}
+
+// make flow live
+app.post(
+    '/api/makeliveflow/:botId/:flowId',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'flow', 'activateFlow');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const flowId = req.params.flowId;
+            const botId = req.params.botId;
+            const bot = await botService.findBot(botId);
+            bot.prevFlowId = bot.flowId;
+            bot.flowId = flowId;
+            await botService.save(bot);
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+        res.send({});
+    });
+
+app.post(
+    '/api/revertFlow/:botId',
+    async (req, res) => {
+        const permissionFlag = await hasAccess(acl, req.user.id, 'flow', 'revertFlow');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+        try {
+            const botId = req.params.botId;
+            const bot = await botService.findBot(botId);
+            if (bot.prevFlowId) {
+                bot.flowId = bot.prevFlowId;
+            }
+            bot.prevFlowId = null;
+            await botService.save(bot);
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+        res.send({});
+    }
+);
+
+app.get(
+    '/api/bots/all',
+    async (req, res) => {
+        const allBots = await botService.getUnusedBots();
+        res.send({ allBots });
+    }
+);
+
+app.get(
+    '/api/bots/unused',
+    async (req, res) => {
+        const bots = await botService.getUnusedBots();
+        res.send({ bots });
+    }
+);
+
+app.post(
+    '/api/bots/:botId/link/:accountId',
+    async (req, res) => {
+        const bot = await botService.findBot(req.params.botId);
+        const account = await accountService.findAccount(req.params.accountId);
+        if (bot && account) {
+            bot.account = account._id.toString();
+            await botService.save(bot);
+        } else {
+            res.status(400);
+        }
+        res.send({});
+    }
+);
+
+app.post(
+    '/api/bots/:botId/unlink',
+    async (req, res) => {
+        const bot = await botService.findBot(req.params.botId);
+        if (bot) {
+            bot.account = null;
+            await botService.save(bot);
+        } else {
+            res.status(400);
+        }
+        res.send({});
+    }
+);
+
+// add api to get pagelist on reload
+
+async function getDeployedPages(botId, platform) {
+    const platformBots = await botService.getPlatformBots(botId, platform);
+    if (!(platformBots || platformbots.length)) {
+        return [];
+    }
+
+    const asyncCalls = [];
+    for (const platformBot of platformBots) {
+        // call fb api to see if subscribed
+        console.log("platformBot", platformBot)
+        // if (!(platformBot.config && platformBot.config.pageAccessToken)) {
+        //     console.log('Invalid platfrom bot');
+        //     platformBot.deployed = false;
+        //     await markPlatfromBotInvalid(platformBot);
+        //     continue;
+        // }
+        const pageAccessToken = platformBot.config.pageAccessToken;
+        const fetchUrl = `https://graph.facebook.com/${platformBot.platformBotId}/subscribed_apps?access_token=${pageAccessToken}`;
+        const promise = fetch(fetchUrl);
+        asyncCalls.push(promise);
+
+    }
+    const resp = await Promise.all(asyncCalls);
+    for (let [idx, value] of resp.entries()) {
+        const subscribedApps = (await value.json()).data;
+        const platformBot = platformBots[idx];
+        const botworxApp = _(subscribedApps).find(subscribedApp => subscribedApp.id === auth.facebook.id);
+        if (!botworxApp) {
+            // TODO Our app is not subscribed, some issue with deployement (must be removed)
+            await markPlatfromBotInvalid(platformBot);
+            platformBot.deployed = false;
+        } else {
+            //console.log('deployment found ----------');
+            platformBot.deployed = true;
+        }
+    }
+    const deployedPages = platformBots.map(x => {
+        return {
+            id: x.platformBotId,
+            access_token: x.config.pageAccessToken,
+            category: x.category,
+            name: x.name,
+            deploymentDetails: x.deploymentDetails,
+            deployed: x.deployed
+        }
+    });
+    return deployedPages;
+}
+
+async function markPlatfromBotInvalid(platfromBot) {
+    platfromBot.invalid = true;
+    const updatedPlatformBot = await botService.savePlatformBot(platfromBot);
+}
+
+app.post(
+    '/api/users/:userId/accounts/bots/pagelist',
+    async (req, res) => { // {currentUserPages: [], otherUserPages: []}
+        const permissionFlag = await hasAccess(acl, req.user.id, 'page', 'requestAccessToken');
+        if (permissionFlag === false) {
+            res.send(401, 'User not authenticated');
+            return;
+        }
+        var shortAccessToken = req.body.accessToken;
+        var userId = req.body.userId;
+        var fbUserId = req.body.fbUserId;
+        const botId = req.body.botId;
+        const platform = req.body.platform;
+        const currentUserPages = await getPagelist(shortAccessToken, userId, fbUserId)
+        //console.log('currentUserPages', currentUserPages);
+        const deployedPages = await getDeployedPages(botId, platform);
+        //console.log('deployedPages', deployedPages);
+        const deployedBots = _(deployedPages).filter(x => x.deployed).value();
+        _(currentUserPages).each(x => {
+            const plBotForPage = _(deployedBots).find(y => y.id === x.id && y.deployed);
+            if (plBotForPage) {
+                _.remove(deployedBots, bot => bot.id === plBotForPage.id);
+                x.deployed = true;
+            }
+        });
+        const otherUserPages = deployedBots;
+        const allPages = { currentUserPages, otherUserPages };
+        //console.log(allPages);
+        res.send(allPages);
+    });
+
+async function getPagelist(shortAccessToken, userId, fbUserId) {
+    const appId = auth.facebook.id;
+    const appSecret = auth.facebook.secret;
+    // getting Permanent user access token
+
+    const fetchUrl = 'https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id='
+        + auth.facebook.id + '&client_secret=' + auth.facebook.secret + '&fb_exchange_token='
+        + shortAccessToken;
+    const resp = await fetch(fetchUrl);
+
+    let permanentAccessToken = (await resp.text()).split("=")[1];
+
+    const pageResponse = await (await fetch('https://graph.facebook.com/me/accounts?access_token=' + permanentAccessToken)).json();
+
+    const pageList = pageResponse.data;
+    const currentUser = await userService.findUser(userId);
+    currentUser.tokens = currentUser.tokens || {};
+    currentUser.tokens[fbUserId] = permanentAccessToken;
+    await userService.save(currentUser);
+    return pageList;
+}
+
+
+// get subscription nodes
+app.get(
+    '/api/subscriptions/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        const subscriptionsNodes = await botService.getSubscriptionsNodesForBot(req.params.botId);
+        res.send({
+            subscriptionsNodes,
+        });
+    }
+);
+
+// save subscription nodes
+app.post(
+    '/api/subscriptions/accounts/:accountId/bots/:botId',
+    async (req, res) => {
+        try {
+            const botId = req.params.botId;
+            const subscriptionJson = req.body.subscriptionJson;
+            const subscriptionsNode = await botService.getSubscriptionsNodesForBot(req.params.botId);
+            if (subscriptionsNode && subscriptionsNode.length > 0) {
+                subscriptionsNode[0].nodes = subscriptionJson.nodes
+                await botService.saveSubscriptionNodes(subscriptionsNode[0]);
+            } else {
+                const node = subscriptionJson;
+                node.botId = botId;
+                await botService.createSubscriptionNodes(node);
+            }
+
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+// delete subscription nodes
+app.delete(
+    '/api/subscriptions/accounts/:accountId/bots/:botId/:subscriptionNodeId',
+    async (req, res) => {
+        try {
+            const subscriptionNodeId = req.params.subscriptionNodeId;
+            await botService.deleteSubscriptionNodes(subscriptionNodeId);
+        } catch (e) {
+            console.log(e);
+        }
+        res.send({});
+    }
+);
+
+app.use(
+    '/api/metrics/:accountId/:botId/:metric',
+    async (req, res) => {
+        let data = {};
+        const startDate = req.query.startDate;
+        const endDate = req.query.endDate;
+        const botId = req.params.botId;
+        const elasticBotId = await botService.getPlatformBotId(botId);
+        const startDateM = moment(startDate);
+        const endDateM = moment(endDate);
+        const filters = req.body.filters;
+        const permissionFlag = await hasAccess(acl, req.user.id, 'metrics', 'viewAnalytics');
+        if (permissionFlag === false) {
+            response.send(401, 'User not authenticated');
+            return;
+        }
+
+        try {
+            switch (req.params.metric) {
+                case 'ProfileAge': {
+                    const counts = await getCountsByProfileAge(elasticBotId, filters);
+                    data = {
+                        ProfileAge: {
+                            data: {
+                                columns: [],
+                            },
+                        },
+                    };
+                    Object.keys(counts).forEach(c => {
+                        data.ProfileAge.data.columns.push([c, counts[c]]);
+                    });
+                    break;
+                }
+
+                case 'MessageCount': {
+                    data = {
+                        MessageCount: {
+                            data: {
+                                x: 'x',
+                                columns: [['x'], ['Messages In'], ['Messages Out']],
+                                groups: [['Messages In', 'Messages Out']],
+                            },
+                            axis: {
+                                x: {
+                                    type: 'timeseries',
+                                    tick: {
+                                        format: '%Y-%m-%d',
+                                    },
+                                },
+                            },
+                        },
+                    };
+
+                    const counts = await getMessageCounts(elasticBotId, startDate, endDate, filters);
+                    for (const m = moment(startDateM); m.isSameOrBefore(endDateM); m.add(1, 'days')) {
+                        const dateData = m.format('YYYY-MM-DD');
+                        const d = `${dateData} 00:00:00`;
+                        data.MessageCount.data.columns[0].push(dateData);
+                        data.MessageCount.data.columns[1].push(counts[d] ? counts[d].USER_TO_BOT : 0);
+                        data.MessageCount.data.columns[2].push(counts[d] ? counts[d].BOT_TO_USER : 0);
+                    }
+
+                    break;
+                }
+
+                case 'ReadDelay': {
+                    const counts = await countByReadDelay(elasticBotId, filters);
+                    // const counts2 = await messageCountByReadDelay(elasticBotId);
+
+                    data = {
+                        ReadDelay: {
+                            data: {
+                                columns: [],
+                            },
+                        },
+                    };
+
+                    Object.keys(counts).forEach(c => {
+                        data.ReadDelay.data.columns.push([c, counts[c]]);
+                    });
+
+                    break;
+                }
+
+                case 'ResponseDelay': {
+                    const counts = await countByResponseDelay(elasticBotId, filters);
+                    data = {
+                        ResponseDelay: {
+                            data: {
+                                columns: [],
+                            },
+                        },
+                    };
+
+                    Object.keys(counts).forEach(c => {
+                        data.ResponseDelay.data.columns.push([c, counts[c]]);
+                    });
+                    break;
+                }
+
+                case 'Country': {
+                    const countryCounts = await getCountsByCountry(elasticBotId, filters);
+                    data = {
+                        Country: {
+                            data: {
+                                columns: [],
+                            },
+                        },
+                    };
+
+                    Object.keys(countryCounts).forEach(c => {
+                        data.Country.data.columns.push([c, countryCounts[c]]);
+                    });
+                    break;
+                }
+
+                case 'Locale': {
+                    const localeCounts = await getCountsByLocale(elasticBotId, filters);
+                    data = {
+                        Locale: {
+                            data: {
+                                columns: [],
+                            },
+                        },
+                    };
+
+                    Object.keys(localeCounts).forEach(l => {
+                        data.Locale.data.columns.push([l, localeCounts[l]]);
+                    });
+                    break;
+                }
+
+
+                case 'Gender': {
+                    const counts = await getGenderCount(elasticBotId, filters);
+                    data = {
+                        Gender: {
+                            data: {
+                                columns: [],
+                            },
+                        },
+                    };
+
+                    Object.keys(counts).forEach(g => {
+                        data.Gender.data.columns.push([g, counts[g]]);
+                    });
+
+                    break;
+                }
+
+                case 'User': {
+                    const newUsers = await getNewUsers(elasticBotId, startDate, endDate, filters);
+                    const activeUsers = await getActiveUsers(elasticBotId, startDate, endDate, filters);
+                    const totalUsers = await getTotalUsers(elasticBotId, startDate, endDate, filters);
+
+                    data = {
+                        User: {
+                            data: {
+                                x: 'x',
+                                columns: [['x'], ['New Users'], ['Active Users'], ['Total Users']],
+                            },
+                            axis: {
+                                x: {
+                                    type: 'timeseries',
+                                    tick: {
+                                        format: '%Y-%m-%d',
+                                    },
+                                },
+                            },
+                        },
+                    };
+
+                    for (const m = moment(startDateM); m.isSameOrBefore(endDateM); m.add(1, 'days')) {
+                        const dateData = m.format('YYYY-MM-DD');
+                        const d = `${dateData} 00:00:00`;
+                        data.User.data.columns[0].push(dateData);
+                        data.User.data.columns[1].push(newUsers[d] || 0);
+                        data.User.data.columns[2].push(activeUsers[d] || 0);
+                        data.User.data.columns[3].push(totalUsers[dateData] || 0);
+                    }
+
+                    break;
+                }
+
+                case 'MessageSession': {
+                    const messageSession = await getMessageSession(elasticBotId, startDate, endDate, filters);
+
+                    data = {
+                        MessageSession: {
+                            data: {
+                                x: 'x',
+                                columns: [['x'], ['Messages'], ['Sessions']],
+                                groups: [['Messages', 'Sessions']],
+                            },
+                            axis: {
+                                x: {
+                                    type: 'timeseries',
+                                    tick: {
+                                        format: '%Y-%m-%d',
+                                    },
+                                },
+                            },
+                        },
+                    };
+
+                    for (const m = moment(startDateM); m.isSameOrBefore(endDateM); m.add(1, 'days')) {
+                        const dateData = m.format('YYYY-MM-DD');
+                        const d = `${dateData} 00:00:00`;
+                        data.MessageSession.data.columns[0].push(dateData);
+                        data.MessageSession.data.columns[1].push(
+                            messageSession.message[dateData] || messageSession.message[d] || 0
+                        );
+                        data.MessageSession.data.columns[2].push(
+                            messageSession.session[dateData] || messageSession.session[d] || 0
+                        );
+                    }
+
+                    break;
+                }
+
+                case 'MessageUser': {
+                    const messageUser = await getMessageUser(elasticBotId, startDate, endDate, filters);
+                    data = {
+                        MessageUser: {
+                            data: {
+                                x: 'x',
+                                columns: [['x'], ['Messages'], ['Users']],
+                                groups: [['Messages', 'Users']],
+                            },
+                            axis: {
+                                x: {
+                                    type: 'timeseries',
+                                    tick: {
+                                        format: '%Y-%m-%d',
+                                    },
+                                },
+                            },
+                        },
+                    };
+
+                    for (const m = moment(startDateM); m.isSameOrBefore(endDateM); m.add(1, 'days')) {
+                        const dateData = m.format('YYYY-MM-DD');
+                        const d = `${dateData} 00:00:00`;
+                        data.MessageUser.data.columns[0].push(dateData);
+                        data.MessageUser.data.columns[1].push(
+                            messageUser.message[dateData] || messageUser.message[d] || 0
+                        );
+                        data.MessageUser.data.columns[2].push(
+                            messageUser.user[dateData] || messageUser.user[d] || 0
+                        );
+                    }
+
+                    break;
+                }
+
+                case 'Session': {
+                    const userSession = await getActiveSessions(elasticBotId, startDate, endDate, filters);
+
+                    data = {
+                        Session: {
+                            data: {
+                                x: 'x',
+                                columns: [['x'], ['Users'], ['Sessions']],
+                                groups: [['Users', 'Sessions']],
+                            },
+                            axis: {
+                                x: {
+                                    type: 'timeseries',
+                                    tick: {
+                                        format: '%Y-%m-%d',
+                                    },
+                                },
+                            },
+                        },
+                    };
+
+                    for (const m = moment(startDateM); m.isSameOrBefore(endDateM); m.add(1, 'days')) {
+                        const dateData = m.format('YYYY-MM-DD');
+                        const d = `${dateData} 00:00:00`;
+
+                        data.Session.data.columns[0].push(dateData);
+                        data.Session.data.columns[1].push(
+                            userSession.user[d] || userSession.user[dateData] || 0
+                        );
+                        data.Session.data.columns[2].push(
+                            userSession.session[d] || userSession.session[dateData] || 0
+                        );
+                    }
+
+                    break;
+                }
+
+                default:
+            }
+        } catch (e) {
+            /* eslint-disable no-console */
+            console.log(e);
+            /* eslint-enable no-console */
+        }
+
+        res.send({ metrics: data });
+    }
+);
+
+// NOTE: There is a * router below. Place this before that.
+app.use('/api/facebook', facebookRouter);
+app.use('/testing', testingRouter);
+app.use('/api/loadSchema', schemaRouter);
+
+//
+// Register API middleware
+// -----------------------------------------------------------------------------
+// app.use('/graphql', expressGraphQL(req => ({
+//   schema,
+//   graphiql: true,
+//   rootValue: { request: req },
+//   pretty: process.env.NODE_ENV !== 'production',
+// })));
+
+//
+// Register server-side rendering middleware
+// -----------------------------------------------------------------------------
+app.get('*', async (req, res, next) => {
+    console.log('cur url is -------', req.url);
+    console.log('req.user is -------- ', req.user);
+    if (!(req.user || req.url === '/')) {
+        console.log('redirecting user', req.user, req.url);
+        res.redirect('/');
+        return;
+    }
+    const muiTheme = getMuiTheme({}, {
+        userAgent: req.headers['user-agent'],
+    });
+    console.log('in server ----------------------');
+    const history = createHistory(req.url);
+    // let currentLocation = history.getCurrentLocation();
+    let sent = false;
+    const removeHistoryListener = history.listen(location => {
+        const newUrl = `${location.pathname}${location.search}`;
+        if (req.originalUrl !== newUrl) {
+            // console.log(`R ${req.originalUrl} -> ${newUrl}`); // eslint-disable-line no-console
+            if (!sent) {
+                res.redirect(303, newUrl);
+                sent = true;
+                next();
+            } else {
+                console.error(`${req.path}: Already sent!`); // eslint-disable-line no-console
+            }
+        }
+    });
+
+    try {
+        const store = configureStore({ auth: { user: req.user } }, {
+            cookie: req.headers.cookie,
+            history,
+        });
+
+        store.dispatch(setRuntimeVariable({
+            name: 'initialNow',
+            value: Date.now(),
+        }));
+        let css = new Set();
+        let statusCode = 200;
+        const data = {
+            title: '',
+            description: '',
+            style: '',
+            script: assets.main.js,
+            children: '',
+        };
+
+        await UniversalRouter.resolve(routes, {
+            theme: muiTheme,
+            currentRoute: req.path,
+            path: req.path,
+            query: req.query,
+            context: {
+                store,
+                createHref: history.createHref,
+                insertCss: (...styles) => {
+                    styles.forEach(style => css.add(style._getCss())); // eslint-disable-line no-underscore-dangle, max-len
+                },
+                setTitle: value => (data.title = value),
+                setMeta: (key, value) => (data[key] = value),
+            },
+            render(component, status = 200) {
+                css = new Set();
+                statusCode = status;
+                data.children = ReactDOM.renderToString(component);
+                data.state = store.getState();
+                data.style = [...css].join('');
+                return true;
+            },
+        });
+
+        if (!sent) {
+            const html = ReactDOM.renderToStaticMarkup(<Html {...data} />);
+            res.status(statusCode);
+            res.send(`<!doctype html>${html}`);
+        }
+    } catch (err) {
+        next(err);
+    } finally {
+        removeHistoryListener();
+    }
+});
+
+
+//
+// Error handling
+// -----------------------------------------------------------------------------
+const pe = new PrettyError();
+pe.skipNodeFiles();
+pe.skipPackage('express');
+
+// TODO log exceptions somewhere in the cloud
+const expressErrorHandler = (err, req, res, next) => { // eslint-disable-line no-unused-vars
+    console.log(pe.render(err)); // eslint-disable-line no-console
+    if (!req.xhr || res.headersSent) {
+        return next(err);
+    }
+    const statusCode = err.status || 500;
+    const html = ReactDOM.renderToStaticMarkup(
+        <Html
+            title="Internal Server Error"
+            description={err.message}
+            style={errorPageStyle._getCss()} // eslint-disable-line no-underscore-dangle
+        >
+            {ReactDOM.renderToString(<ErrorPageWithoutStyle error={err} />)}
+        </Html>
+    );
+    res.status(statusCode);
+    res.send(`<!doctype html>${html}`);
+}
+
+// Use our custom error handler
+app.use(expressErrorHandler);
+
+process.on('uncaughtException', (err) => {
+    console.error('UncaughtException', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('UnhandledRejection', reason);
+});
+
+/**
+ *  Launch the server
+ */
+app.listen(port, () => {
+    // NOTE: This is important. Some dev process is watching for this.
+    // If this message is not valid, dev build will not work properly.
+    /* eslint-disable no-console */
+    console.log(`The server is running at http://${host}/`);
+    /* eslint-enable no-console */
+});

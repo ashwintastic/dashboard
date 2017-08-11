@@ -1,0 +1,9 @@
+.noresultmsg{
+    background-color: red;
+    text-align: center;
+    height: 43px;
+    padding-top: 6px;
+    border-radius: 4px;
+    color: white;
+    font-size: 20px;
+}

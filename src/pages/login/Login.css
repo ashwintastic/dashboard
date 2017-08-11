@@ -1,0 +1,110 @@
+@import '../../components/variables.css';
+
+.root {
+    flex-grow: 1;
+    margin-top: 10%;
+}
+
+.loginTitle {
+    text-align: center;
+    font-weight: normal;
+    margin-bottom: 40px;
+}
+
+.container {
+    margin: 0 auto;
+    padding: 0 40px 40px 40px;
+    max-width: 380px;
+}
+
+.button {
+    display: block;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 10px 16px;
+    width: 100%;
+    outline: 0;
+    border: 1px solid #373277;
+    border-radius: 0;
+    background: #373277;
+    color: #fff;
+    text-align: center;
+    text-decoration: none;
+    font-size: 18px;
+    line-height: 1.3333333;
+    cursor: pointer;
+}
+
+.button:hover {
+    background: rgba(54, 50, 119, 0.8);
+}
+
+.button:focus {
+    border-color: #0074c2;
+    box-shadow: 0 0 8px rgba(0, 116, 194, 0.6);
+}
+
+.facebook {
+    border-color: #3b5998;
+    background: #3b5998;
+    composes: button;
+}
+
+.facebook:hover {
+    background: #2d4373;
+}
+
+.icon {
+    display: inline-block;
+    margin: -2px 12px -2px 0;
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+    fill: currentColor;
+}
+
+.lineThrough {
+    position: relative;
+    z-index: 1;
+    display: block;
+    width: 100%;
+    color: #757575;
+    text-align: center;
+    font-size: 80%;
+    margin: 40px 0 10px;
+}
+
+.lineThrough::before {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: -1;
+    margin-top: -5px;
+    margin-left: -60px;
+    width: 120px;
+    height: 10px;
+    background-color: #fff;
+    content: '';
+}
+
+.lineThrough::after {
+    position: absolute;
+    top: 49%;
+    z-index: -2;
+    display: block;
+    width: 100%;
+    border-bottom: 1px solid #ddd;
+    content: '';
+}
+
+.lead {
+    font-size: 1.25em;
+}
+
+.loginButton {
+    margin-top: 20px;
+}
+
+.errMsg {
+    color: red;
+}

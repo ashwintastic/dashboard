@@ -1,0 +1,17 @@
+.breadCrumbsContainer {
+    margin-top: 1em;
+    font-size: 1em;
+}
+
+.breadCrumbsContainer .breadCrumbSeparator {
+    font-size: 0.8em;
+}
+
+.breadCrumbsContainer span:last-child>a {
+    cursor:none;
+    color: #333;
+    font-size:1.1em;
+}
+.breadCrumbsContainer span:last-child>.breadCrumbSeparator {
+    display:none;
+}

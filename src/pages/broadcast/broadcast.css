@@ -1,0 +1,94 @@
+@import '../../components/variables.css';
+
+.root {
+    padding: 20px;
+}
+
+.flowButton {
+    margin: 13px 0px 0px 10px;
+    flex-grow: 0;
+    width: 100px;
+}
+
+.createButton {
+    margin: 13px 0px 0px 10px;
+    flex-grow: 0;
+    width: 150px;
+}
+
+.formRow {
+    align-items: flex-end;
+    justify-content: flex-start;
+}
+
+.selectText {
+    font-size: 18px;
+    margin-top: 30px;
+}
+
+.section {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+    min-height: 750px;
+}
+
+.actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.action {
+    flex: 0 0 auto;
+    margin: 0 10px 0 0;
+}
+
+.botForm {
+    max-width: 480px;
+}
+
+.createForm {
+    max-width: 450px;
+    margin: 10px 0;
+}
+
+.select {
+    max-width: 600px;
+}
+.createFlow{
+    margin-left: -5px;
+    margin-top: -12px;
+}
+.headerelem {
+    display: inline-block;
+}
+
+.saveButton {
+    margin: 13px 0px 0px 10px;
+    flex-grow: 0;
+    width: 100px;
+}
+
+.formContainer{
+    flex-direction: row;
+    display: inline;
+    padding-left: 20px;
+    background-color: blue;
+    padding-bottom: 30px;
+}
+.divStyle{
+    display: inline-flex;
+}
+
+.errotText{
+    color:red;
+    font-weight: bold;
+}
+.noresultmsg{
+    background-color: #FFFFC1 !important;
+    text-align: center !important;
+    height: 43px;
+    padding-top: 6px;
+    border-radius: 4px;
+    color: #757575;
+    font-size: 20px;
+}

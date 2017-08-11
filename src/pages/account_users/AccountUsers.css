@@ -1,0 +1,39 @@
+@import '../../components/variables.css';
+
+.root {
+    padding: 20px;
+}
+
+.section {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+    min-height: 750px;
+}
+
+.headerelem {
+    display: inline-block;
+}
+
+.actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.createUser{
+    margin-left: 20px;
+    margin-top: -12px;
+}
+
+.existingUser{
+    width: 150px;
+}
+
+.noresultmsg{
+    background-color: #FFFFC1 !important;
+    text-align: center !important;
+    height: 43px;
+    padding-top: 6px;
+    border-radius: 4px;
+    color: #757575;
+    font-size: 20px;
+}

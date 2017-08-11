@@ -1,0 +1,7 @@
+@import "../variables.css";
+
+.link {
+    align-items: center;
+    display: flex;
+    text-decoration: none;
+}

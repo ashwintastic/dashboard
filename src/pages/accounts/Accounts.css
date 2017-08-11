@@ -1,0 +1,40 @@
+@import '../../components/variables.css';
+
+.root {
+    padding: 20px;
+}
+
+.actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.action {
+    flex: 0 0 auto;
+    margin: 0 10px 0 0;
+}
+
+.section {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+    min-height: 750px;
+}
+
+.createAccount{
+    margin-left: -10px;
+    margin-top: -20px;
+}
+
+.headerelem {
+    display: inline-block;
+}
+
+.noresultmsg{
+    background-color: #FFFFC1;
+    text-align: center;
+    height: 43px;
+    padding-top: 6px;
+    border-radius: 4px;
+    color: #757575;
+    font-size: 20px;
+}

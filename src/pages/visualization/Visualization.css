@@ -1,0 +1,97 @@
+@import "../../components/variables.css";
+
+.App {
+    text-align: center;
+}
+
+.App-logo {
+    animation: App-logo-spin infinite 20s linear;
+    height: 80px;
+}
+
+.App-header {
+    background-color: #222;
+    height: 150px;
+    padding: 20px;
+    color: white;
+}
+
+.App-intro {
+    font-size: large;
+}
+
+@keyframes App-logo-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+pre {padding: 5px; margin: 5px; height:400px; position: relative}
+.string { color: green; }
+.number { color: darkorange; }
+.boolean { color: blue; }
+.null { color: magenta; }
+.key { color: red; }
+
+.nodeDetails{
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 300px;
+    background-color: white;
+    height: 300px;
+    overflow-x: scroll;
+    overflow-y: scroll;
+    z-index: 100;
+    box-shadow: 0px 0px 6px 0px;
+    padding: 2% 3% 3% 2%;
+    word-wrap: normal;
+}
+
+.nodeDetails li,span {
+    word-break: normal !important;
+    word-wrap: normal !important;
+    white-space: nowrap !important;
+}
+
+.root {
+    padding: 20px;
+}
+.canvasSizeRenderer {
+    position: absolute;
+    height: 100%;
+    width: 100%
+}
+.section {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+}
+.closebutton{
+    position: fixed;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: monospace;
+    /* width: 15px; */
+    z-index: 100;
+    border-radius: 18px;
+    color: #757575;
+    /* margin-left: -15px; */
+    background-color: cornflowerblue;
+    color: wheat;
+    padding: 1px 6px 1px 6px;
+    box-shadow: 1px 1px 2px -2px black;
+    right: 40px;
+    top: 20px;
+    width: 20px;
+    text-align: center;
+}
+
+.jsondetails{
+    position: relative;
+    z-index: 1;
+}
+
+.canvas-container, .canvas{
+    position: absolute;
+    height: 90%;
+    width: 100%
+}

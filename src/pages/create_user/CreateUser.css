@@ -1,0 +1,41 @@
+@import '../../components/variables.css';
+
+.root {
+    padding: 20px;
+}
+
+.actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.action {
+    flex: 0 0 auto;
+    margin: 0 10px 0 0;
+}
+
+.section {
+    padding: 0 10px 10px;
+    margin-right: auto;
+    margin-left: auto;
+    width:400px;
+    text-align: 'center';
+}
+
+.saveButton {
+    margin: 13px 0px 10px 50px;
+    flex-grow: 0;
+    width: 100px;
+}
+
+.withHorzMargin {
+    width: 400px;
+    margin-left: 50px;
+    margin-right: 350px;
+}
+
+.errotText{
+    color:red;
+    margin-left: 50px;
+    font-weight: bold;
+}

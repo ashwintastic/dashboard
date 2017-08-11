@@ -1,0 +1,13 @@
+@import '../../components/variables.css';
+
+.timer {
+    display: inline-block;
+    color: white;
+    width: 300px;
+    text-align: right;
+    margin-right: 40px;
+}
+
+.hidden {
+    display: none
+}

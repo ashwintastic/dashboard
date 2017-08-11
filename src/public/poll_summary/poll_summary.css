@@ -1,0 +1,52 @@
+#pieChart{
+    display: table-caption;
+}
+
+svg > text{
+    fill: #757575 !important;
+}
+
+svg{
+    /*width: 800px !important;*/
+}
+
+body{
+    margin: 10px;
+}
+
+.graph-container{
+    background-color: lightgrey;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    border-color: lightgrey;
+    border-radius: 5px;
+}
+
+#poll-info {
+    color: grey;
+}
+
+#poll-name {
+  font-size: 22px;
+}
+
+#poll-desc {
+    margin-top: 10px;
+}
+
+.invisible{
+    display: none;
+}
+
+.graph-title, .graph-subtitle {
+    padding: 10px 5px 10px 5px !important;
+    color: black;
+}
+
+.graph-title{
+    font-weight: bold;
+}
+
+#total-users {
+    padding-top: 10px;
+}

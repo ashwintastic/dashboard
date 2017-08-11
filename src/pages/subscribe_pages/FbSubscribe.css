@@ -1,0 +1,35 @@
+@import '../../components/variables.css';
+
+.root {
+    padding: 20px;
+}
+
+.actions {
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.action {
+    flex: 0 0 auto;
+    margin: 0 10px 0 0;
+}
+
+.section {
+    padding: 0 10px 10px;
+    margin-bottom: 20px;
+    min-height: 750px;
+}
+
+.errotText{
+    color:green;
+    font-weight: bold;
+}
+
+.progressBar {
+    margin-left: -5px;
+    margin-top: -12px;
+}
+
+.headerelem {
+    display: inline-block;
+}
